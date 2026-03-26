@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIVIL-226: Convolution & Backpropagation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        /* Header & Tabs */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 5px;
+            color: #e0e0e0;
+        }
+
+        .header h2 {
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #0a9396;
+            margin-top: 0;
+        }
+
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+
+        .tab-btn {
+            background: transparent;
+            color: #aaa;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+
+        .tab-btn:hover {
+            color: #fff;
+            background: #2a2a2a;
+        }
+
+        .tab-btn.active {
+            color: #fff;
+            background: #0a9396;
+            box-shadow: 0 4px 10px rgba(10, 147, 150, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Grids & Cells */
+        .container {
+            display: flex;
+            gap: 30px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .grid-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .grid {
+            display: grid;
+            gap: 5px;
+            background-color: #333;
+            padding: 5px;
+            border-radius: 8px;
+        }
+
+        .grid-3x3 {
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+        }
+
+        .grid-2x2 {
+            grid-template-columns: repeat(2, 60px);
+            grid-template-rows: repeat(2, 60px);
+        }
+
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #2d2d2d;
+            border: 2px solid #555;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        /* Grid Colors & Highlights */
+        .highlight-filter {
+            background-color: #6a040f;
+            border-color: #9d0208;
+            color: #ffba08;
+        }
+
+        .highlight-output {
+            background-color: #274c77;
+            border-color: #6096ba;
+            color: #a3cef1;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(96, 150, 186, 0.5);
+            z-index: 10;
+        }
+
+        .highlight-grad-in {
+            background-color: #5a189a;
+            border-color: #7b2cbf;
+            color: #e0aaff;
+        }
+
+        .highlight-grad-out {
+            background-color: #9d0208;
+            border-color: #dc2f02;
+            color: #ffba08;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(220, 47, 2, 0.5);
+            z-index: 10;
+        }
+
+        .highlight-weight-new {
+            background-color: #004b23;
+            border-color: #38b000;
+            color: #ccff33;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(56, 176, 0, 0.5);
+            z-index: 10;
+        }
+
+        /* Sliding Window Match Colors */
+        .slide-filter {
+            background-color: #4a0a14;
+            border-color: #ffba08;
+            color: #ffba08;
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(255, 186, 8, 0.3);
+        }
+
+        .slide-grad {
+            background-color: #3c096c;
+            border-color: #e0aaff;
+            color: #e0aaff;
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(224, 170, 255, 0.3);
+        }
+
+        /* Controls & Math Boxes */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 12px;
+            width: 700px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
+
+        .info-panel {
+            background: #1a1a1a;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border-left: 4px solid #e9c46a;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-around;
+            width: 660px;
+            font-size: 1.1rem;
+        }
+
+        input[type=range] {
+            width: 300px;
+            cursor: pointer;
+        }
+
+        .math-box,
+        .update-box {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #000;
+            font-family: monospace;
+            font-size: 1.1rem;
+            min-width: 500px;
+            text-align: center;
+            border-radius: 6px;
+        }
+
+        .math-box-f {
+            border-left: 4px solid #ffba08;
+        }
+
+        .math-box-b {
+            border-left: 4px solid #e0aaff;
+        }
+
+        .update-box {
+            border-left: 4px solid #38b000;
+            color: #ccff33;
+        }
+
+        h3 {
+            margin-bottom: 10px;
+            color: #ccc;
+            font-weight: 500;
+            font-size: 1.1rem;
+        }
+
+        /* Train Tab Specifics */
+        .log-box {
+            background: #000;
+            padding: 15px;
+            border-radius: 6px;
+            height: 110px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.95rem;
+            width: 300px;
+            border-left: 4px solid #0a9396;
+            color: #aaa;
+            text-align: left;
+        }
+
+        .train-btn {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .train-btn:hover {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>CIVIL-226: Intro to ML</h1>
+        <h2>Convolutions Under the Hood</h2>
+    </div>
+
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('forwardTab', this)">1. Forward Pass</button>
+        <button class="tab-btn" onclick="switchTab('backwardTab', this)">2. Backward Pass</button>
+        <button class="tab-btn" onclick="switchTab('trainTab', this)">3. Training Loop</button>
+    </div>
+
+    <div id="forwardTab" class="tab-content active">
+        <div class="controls">
+            <label for="f-slider"><strong>Sliding Window Step: <span id="f-label">1</span> / 4</strong></label>
+            <input type="range" id="f-slider" min="1" max="4" value="1">
+        </div>
+
+        <div class="container">
+            <div class="grid-container">
+                <h3>Input X (3x3)</h3>
+                <div class="grid grid-3x3" id="f-input">
+                    <div class="cell" id="f-in-0">1.0</div>
+                    <div class="cell" id="f-in-1">2.0</div>
+                    <div class="cell" id="f-in-2">1.0</div>
+                    <div class="cell" id="f-in-3">0.0</div>
+                    <div class="cell" id="f-in-4">1.0</div>
+                    <div class="cell" id="f-in-5">3.0</div>
+                    <div class="cell" id="f-in-6">2.0</div>
+                    <div class="cell" id="f-in-7">0.0</div>
+                    <div class="cell" id="f-in-8">1.0</div>
+                </div>
+            </div>
+            <div class="grid-container">
+                <h3>Filter W (2x2)</h3>
+                <div class="grid grid-2x2">
+                    <div class="cell highlight-filter">0.5</div>
+                    <div class="cell highlight-filter">-0.2</div>
+                    <div class="cell highlight-filter">-0.5</div>
+                    <div class="cell highlight-filter">0.8</div>
+                </div>
+            </div>
+            <div class="grid-container">
+                <h3>Output (2x2)</h3>
+                <div class="grid grid-2x2" id="f-output">
+                    <div class="cell" id="f-out-0">0.0</div>
+                    <div class="cell" id="f-out-1">0.0</div>
+                    <div class="cell" id="f-out-2">0.0</div>
+                    <div class="cell" id="f-out-3">0.0</div>
+                </div>
+            </div>
+        </div>
+        <div class="math-box math-box-f" id="f-math">Calculation appears here.</div>
+    </div>
+
+    <div id="backwardTab" class="tab-content">
+        <div class="info-panel">
+            <span><strong>Target:</strong> 5.0</span>
+            <span><strong>Prediction (Max Pool):</strong> 2.7</span>
+            <span><strong>dL/dPool:</strong> 2.7 - 5.0 = <strong>-2.3</strong></span>
+        </div>
+
+        <div class="controls">
+            <label for="b-slider"><strong>Calculate dL/dW for Weight Index: <span id="b-label">0
+                        (Top-Left)</span></strong></label>
+            <input type="range" id="b-slider" min="0" max="3" value="0">
+        </div>
+
+        <div class="container" style="gap: 20px;">
+            <div class="grid-container">
+                <h3>Input X (3x3)</h3>
+                <div class="grid grid-3x3" id="b-input">
+                    <div class="cell" id="b-in-0">1.0</div>
+                    <div class="cell" id="b-in-1">2.0</div>
+                    <div class="cell" id="b-in-2">1.0</div>
+                    <div class="cell" id="b-in-3">0.0</div>
+                    <div class="cell" id="b-in-4">1.0</div>
+                    <div class="cell" id="b-in-5">3.0</div>
+                    <div class="cell" id="b-in-6">2.0</div>
+                    <div class="cell" id="b-in-7">0.0</div>
+                    <div class="cell" id="b-in-8">1.0</div>
+                </div>
+            </div>
+            <div class="grid-container">
+                <h3>Gradient dL/dY</h3>
+                <div class="grid grid-2x2">
+                    <div class="cell highlight-grad-in">0.0</div>
+                    <div class="cell highlight-grad-in">-2.3</div>
+                    <div class="cell highlight-grad-in">0.0</div>
+                    <div class="cell highlight-grad-in">0.0</div>
+                </div>
+            </div>
+            <div class="grid-container">
+                <h3>Gradients dL/dW</h3>
+                <div class="grid grid-2x2" id="b-output">
+                    <div class="cell" id="b-out-0">0.0</div>
+                    <div class="cell" id="b-out-1">0.0</div>
+                    <div class="cell" id="b-out-2">0.0</div>
+                    <div class="cell" id="b-out-3">0.0</div>
+                </div>
+            </div>
+            <div class="grid-container">
+                <h3>New Filter W</h3>
+                <div class="grid grid-2x2" id="b-weights">
+                    <div class="cell" id="b-w-0">0.50</div>
+                    <div class="cell" id="b-w-1">-0.20</div>
+                    <div class="cell" id="b-w-2">-0.50</div>
+                    <div class="cell" id="b-w-3">0.80</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="math-box math-box-b" id="b-math">Math calculation appears here.</div>
+        <div class="update-box" id="b-update">Optimizer step appears here.</div>
+    </div>
+
+    <div id="trainTab" class="tab-content">
+        <div class="info-panel" style="border-left-color: #5a189a;">
+            <span><strong>Epoch:</strong> <span id="t-epoch" style="color:#e0aaff;">0</span></span>
+            <span><strong>Target:</strong> 5.000</span>
+            <span><strong>Max Prediction:</strong> <span id="t-pred" style="color:#a3cef1;">2.700</span></span>
+            <span><strong>Error:</strong> <span id="t-err" style="color:#ffba08;">-2.300</span></span>
+        </div>
+
+        <div class="controls" style="flex-direction: row; justify-content: center; width: auto; padding: 15px 30px;">
+            <button class="train-btn" id="btn-step" style="background:#0a9396; color:#fff;" onclick="stepEpoch()">Step 1
+                Epoch</button>
+            <button class="train-btn" id="btn-auto" style="background:#5a189a; color:#fff;"
+                onclick="toggleAutoTrain()">Auto Train</button>
+            <button class="train-btn" id="btn-reset" style="background:#9d0208; color:#fff;"
+                onclick="resetTraining()">Reset Weights</button>
+        </div>
+
+        <div class="container" style="align-items: flex-start;">
+            <div class="grid-container">
+                <h3>Filter W (Updates Live)</h3>
+                <div class="grid grid-2x2" id="t-weights">
+                    <div class="cell highlight-weight-new" id="t-w-0">0.500</div>
+                    <div class="cell highlight-weight-new" id="t-w-1">-0.200</div>
+                    <div class="cell highlight-weight-new" id="t-w-2">-0.500</div>
+                    <div class="cell highlight-weight-new" id="t-w-3">0.800</div>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <h3>Output Map (Max Pool wins)</h3>
+                <div class="grid grid-2x2" id="t-outputs">
+                    <div class="cell" id="t-out-0">0.900</div>
+                    <div class="cell highlight-output" id="t-out-1">2.700</div>
+                    <div class="cell" id="t-out-2">-1.200</div>
+                    <div class="cell" id="t-out-3">0.700</div>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <h3>Training Log</h3>
+                <div class="log-box" id="t-log">
+                    Ready to train. Target prediction is 5.0. Hit "Step" or "Auto Train".<br>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Core Math Variables
+        const X = [1.0, 2.0, 1.0, 0.0, 1.0, 3.0, 2.0, 0.0, 1.0];
+        const forward_W = [0.5, -0.2, -0.5, 0.8];
+        const backward_dY = [0.0, -2.3, 0.0, 0.0];
+        const old_W = [0.5, -0.2, -0.5, 0.8];
+        const lr = 0.05;
+
+        // Sliding Window Index Map
+        const steps = [
+            { inIdx: [0, 1, 3, 4], outIdx: 0, name: "Top-Left" },
+            { inIdx: [1, 2, 4, 5], outIdx: 1, name: "Top-Right" },
+            { inIdx: [3, 4, 6, 7], outIdx: 2, name: "Bottom-Left" },
+            { inIdx: [4, 5, 7, 8], outIdx: 3, name: "Bottom-Right" }
+        ];
+
+        // Tab Switching Function
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btnElement.classList.add('active');
+        }
+
+        // ==========================================
+        // TAB 1: Forward Pass
+        // ==========================================
+        const f_slider = document.getElementById('f-slider');
+        function updateForward() {
+            const currentStepIdx = parseInt(f_slider.value) - 1;
+            document.getElementById('f-label').innerText = f_slider.value;
+
+            document.querySelectorAll('#f-input .cell').forEach(c => c.classList.remove('slide-filter'));
+            document.querySelectorAll('#f-output .cell').forEach(c => c.classList.remove('highlight-output'));
+
+            for (let s = 0; s <= 3; s++) {
+                const outCell = document.getElementById(`f-out-${steps[s].outIdx}`);
+                let sum = 0;
+
+                for (let i = 0; i < 4; i++) {
+                    sum += X[steps[s].inIdx[i]] * forward_W[i];
+                }
+
+                if (s < currentStepIdx) {
+                    outCell.innerText = sum.toFixed(1);
+                } else if (s === currentStepIdx) {
+                    let mathString = "";
+                    for (let i = 0; i < 4; i++) {
+                        document.getElementById(`f-in-${steps[s].inIdx[i]}`).classList.add('slide-filter');
+                        mathString += `(${X[steps[s].inIdx[i]].toFixed(1)} * ${forward_W[i].toFixed(1)})`;
+                        if (i < 3) mathString += " + ";
+                    }
+                    outCell.innerText = sum.toFixed(1);
+                    outCell.classList.add('highlight-output');
+                    document.getElementById('f-math').innerText = `${mathString} = ${sum.toFixed(1)}`;
+                } else {
+                    outCell.innerText = "0.0";
+                }
+            }
+        }
+        f_slider.addEventListener('input', updateForward);
+
+        // ==========================================
+        // TAB 2: Backward Pass
+        // ==========================================
+        const b_slider = document.getElementById('b-slider');
+        function updateBackward() {
+            const currentStepIdx = parseInt(b_slider.value);
+            document.getElementById('b-label').innerText = `${currentStepIdx} (${steps[currentStepIdx].name})`;
+
+            document.querySelectorAll('#b-input .cell').forEach(c => c.classList.remove('slide-grad'));
+            document.querySelectorAll('#b-output .cell').forEach(c => c.classList.remove('highlight-grad-out'));
+            document.querySelectorAll('#b-weights .cell').forEach(c => c.classList.remove('highlight-weight-new'));
+
+            for (let s = 0; s <= 3; s++) {
+                const outCell = document.getElementById(`b-out-${steps[s].outIdx}`);
+                const weightCell = document.getElementById(`b-w-${s}`);
+                let sum = 0;
+
+                for (let i = 0; i < 4; i++) {
+                    sum += X[steps[s].inIdx[i]] * backward_dY[i];
+                }
+
+                let new_w = old_W[s] - (lr * sum);
+
+                if (s < currentStepIdx) {
+                    outCell.innerText = sum.toFixed(2);
+                    weightCell.innerText = new_w.toFixed(3);
+                } else if (s === currentStepIdx) {
+                    let mathString = "dL/dW = ";
+                    for (let i = 0; i < 4; i++) {
+                        document.getElementById(`b-in-${steps[s].inIdx[i]}`).classList.add('slide-grad');
+                        mathString += `(${X[steps[s].inIdx[i]].toFixed(1)} * ${backward_dY[i].toFixed(1)})`;
+                        if (i < 3) mathString += " + ";
+                    }
+                    outCell.innerText = sum.toFixed(2);
+                    outCell.classList.add('highlight-grad-out');
+                    document.getElementById('b-math').innerText = `${mathString} = ${sum.toFixed(2)}`;
+
+                    weightCell.innerText = new_w.toFixed(3);
+                    weightCell.classList.add('highlight-weight-new');
+                    document.getElementById('b-update').innerText = `Optimizer: New W = ${old_W[s].toFixed(1)} - (0.05 * ${sum.toFixed(2)}) = ${new_w.toFixed(3)}`;
+                } else {
+                    outCell.innerText = "0.00";
+                    weightCell.innerText = old_W[s].toFixed(2);
+                }
+            }
+        }
+        b_slider.addEventListener('input', updateBackward);
+
+        // ==========================================
+        // TAB 3: Training Loop
+        // ==========================================
+        let t_W = [...old_W];
+        let t_epoch = 0;
+        let autoTrainInterval = null;
+        let isConverged = false;
+
+        function updateTrainUI(maxPred, maxIdx, err) {
+            document.getElementById('t-epoch').innerText = t_epoch;
+            document.getElementById('t-pred').innerText = maxPred.toFixed(3);
+            document.getElementById('t-err').innerText = err.toFixed(3);
+
+            // Update Weight Grid
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`t-w-${i}`).innerText = t_W[i].toFixed(3);
+            }
+        }
+
+        function stepEpoch() {
+            if (isConverged) return;
+
+            // 1. Forward Pass
+            let outputs = [0, 0, 0, 0];
+            let maxPred = -Infinity;
+            let maxIdx = 0;
+
+            for (let s = 0; s <= 3; s++) {
+                let sum = 0;
+                for (let i = 0; i < 4; i++) {
+                    sum += X[steps[s].inIdx[i]] * t_W[i];
+                }
+                outputs[s] = sum;
+
+                // Update Output Grid UI
+                const outCell = document.getElementById(`t-out-${s}`);
+                outCell.innerText = sum.toFixed(3);
+                outCell.classList.remove('highlight-output');
+
+                // Max Pool Logic
+                if (sum > maxPred) {
+                    maxPred = sum;
+                    maxIdx = s;
+                }
+            }
+
+            // Highlight the winner
+            document.getElementById(`t-out-${maxIdx}`).classList.add('highlight-output');
+
+            // 2. Loss & Gradients
+            let err = maxPred - 5.0;
+
+            // Stop if practically converged
+            if (Math.abs(err) < 0.001) {
+                isConverged = true;
+                logMsg(`<span style="color:#ccff33">Target 5.0 Reached! Network Converged at Epoch ${t_epoch}.</span>`);
+                if (autoTrainInterval) toggleAutoTrain();
+                return;
+            }
+
+            // Route the gradient ONLY to the Max Pool Winner's inputs
+            let dL_dW = [0, 0, 0, 0];
+            for (let i = 0; i < 4; i++) {
+                dL_dW[i] = X[steps[maxIdx].inIdx[i]] * err;
+                // 3. Optimizer Step (Update Weights)
+                t_W[i] = t_W[i] - (lr * dL_dW[i]);
+            }
+
+            t_epoch++;
+            updateTrainUI(maxPred, maxIdx, err);
+
+            if (t_epoch % 1 === 0) {
+                logMsg(`Epoch ${t_epoch} | Pred: ${maxPred.toFixed(3)} | Error: ${err.toFixed(3)}`);
+            }
+        }
+
+        function toggleAutoTrain() {
+            const btn = document.getElementById('btn-auto');
+            if (autoTrainInterval) {
+                clearInterval(autoTrainInterval);
+                autoTrainInterval = null;
+                btn.innerText = "Auto Train";
+                btn.style.background = "#5a189a";
+            } else {
+                if (isConverged) resetTraining();
+                btn.innerText = "Pause Training";
+                btn.style.background = "#ffba08";
+                btn.style.color = "#000";
+                autoTrainInterval = setInterval(stepEpoch, 150); // Speed of loop
+            }
+        }
+
+        function resetTraining() {
+            if (autoTrainInterval) toggleAutoTrain();
+            t_W = [...old_W];
+            t_epoch = 0;
+            isConverged = false;
+            document.getElementById('t-log').innerHTML = "Training reset. Ready.<br>";
+
+            // Re-run initial forward to setup UI
+            let maxPred = 2.7, maxIdx = 1, err = -2.3;
+            document.getElementById('t-out-0').innerText = "0.900";
+            document.getElementById('t-out-1').innerText = "2.700";
+            document.getElementById('t-out-2').innerText = "-1.200";
+            document.getElementById('t-out-3').innerText = "0.700";
+            document.querySelectorAll('#t-outputs .cell').forEach(c => c.classList.remove('highlight-output'));
+            document.getElementById('t-out-1').classList.add('highlight-output');
+
+            updateTrainUI(maxPred, maxIdx, err);
+        }
+
+        function logMsg(msg) {
+            const logBox = document.getElementById('t-log');
+            logBox.innerHTML += msg + "<br>";
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // Initialize all tabs
+        updateForward();
+        updateBackward();
+    </script>
+</body>
+
+</html>
